@@ -1,0 +1,65 @@
+description: This is a pipeline of features
+steps:
+  - name: avg_units_by_country
+    function: mean
+    column: Units Sold
+    group_by:
+      - Country
+
+  - name: total_profit_by_item
+    function: sum
+    column: Total Profit
+    group_by:
+      - Item Type
+
+  - name: revenue_by_country_item
+    function: sum
+    column: Total Revenue
+    group_by:
+      - Country
+      - Item Type
+
+  - name: order_count_by_country
+    function: count
+    column: Order ID
+    group_by:
+      - Country
+
+  - name: max_unit_cost_by_item
+    function: max
+    column: Unit Cost
+    group_by:
+      - Item Type
+
+  - name: min_unit_price_by_region
+    function: min
+    column: Unit Price
+    group_by:
+      - Region
+
+  - name: overall_avg_profit
+    function: mean
+    column: Total Profit
+    group_by: []
+
+  - name: high_value_flag
+    function: threshold
+    column: Total Profit
+    threshold: 100000.0
+    comparator: gt
+
+  - name: profit_margin
+    function: ratio
+    numerator: Total Profit
+    denominator: Total Revenue
+
+  - name: unique_items_by_country
+    function: count_distinct
+    column: Item Type
+    group_by:
+      - Country
+
+  - function: ohe
+    columns: [Item Type, Sales Channel, Order Priority]
+    drop_first: true
+    drop_nulls: false

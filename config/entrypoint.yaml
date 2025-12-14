@@ -1,0 +1,2 @@
+data: data/input/10000 Sales Records.csv
+features: config/features/base.yaml
