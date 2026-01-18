@@ -6,7 +6,7 @@ use std::{
 use polars::error::PolarsError;
 
 #[derive(Debug)]
-pub enum FeatureError {
+pub enum PipelineStepError {
     ColumnNotFound {
         found: String,
         available: Vec<String>,
@@ -19,47 +19,47 @@ pub enum FeatureError {
     SerdeError(serde_yaml::Error),
 }
 
-impl fmt::Display for FeatureError {
+impl fmt::Display for PipelineStepError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FeatureError::ColumnNotFound { found, available } => {
+            PipelineStepError::ColumnNotFound { found, available } => {
                 write!(
                     f,
                     "Column '{}' not found. Available [{:?}]",
                     found, available
                 )
             }
-            FeatureError::EmptyGroupby { feature_name } => {
+            PipelineStepError::EmptyGroupby { feature_name } => {
                 write!(
                     f,
                     "Feature '{}' dont have any groupby columns",
                     feature_name
                 )
             }
-            FeatureError::DataframeError(err) => write!(f, "Polars error: {}", err),
-            FeatureError::IoError(e) => write!(f, "IO error: {}", e),
-            FeatureError::SerdeError(e) => write!(f, "Serde error: {}", e),
+            PipelineStepError::DataframeError(err) => write!(f, "Polars error: {}", err),
+            PipelineStepError::IoError(e) => write!(f, "IO error: {}", e),
+            PipelineStepError::SerdeError(e) => write!(f, "Serde error: {}", e),
         }
     }
 }
 
-impl Error for FeatureError {}
+impl Error for PipelineStepError {}
 
-impl From<PolarsError> for FeatureError {
+impl From<PolarsError> for PipelineStepError {
     fn from(value: PolarsError) -> Self {
-        FeatureError::DataframeError(value)
+        PipelineStepError::DataframeError(value)
     }
 }
 
-impl From<std::io::Error> for FeatureError {
+impl From<std::io::Error> for PipelineStepError {
     fn from(value: std::io::Error) -> Self {
-        FeatureError::IoError(value)
+        PipelineStepError::IoError(value)
     }
 }
 
-impl From<serde_yaml::Error> for FeatureError {
+impl From<serde_yaml::Error> for PipelineStepError {
     fn from(value: serde_yaml::Error) -> Self {
-        FeatureError::SerdeError(value)
+        PipelineStepError::SerdeError(value)
     }
 }
 
