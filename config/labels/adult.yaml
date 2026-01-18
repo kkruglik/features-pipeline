@@ -1,0 +1,7 @@
+description: Target encoding for Adult Income classification
+steps:
+  - function: existing_target
+    column: income
+    name: target
+    encode: true
+    drop_original: true

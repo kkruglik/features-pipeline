@@ -1,0 +1,72 @@
+description: Feature engineering for Adult Income classification
+steps:
+  # Aggregations by categorical groups
+  - name: avg_hours_by_occupation
+    function: mean
+    column: hours-per-week
+    group_by:
+      - occupation
+
+  - name: avg_age_by_education
+    function: mean
+    column: age
+    group_by:
+      - education
+
+  - name: avg_capital_gain_by_workclass
+    function: mean
+    column: capital-gain
+    group_by:
+      - workclass
+
+  - name: max_hours_by_occupation
+    function: max
+    column: hours-per-week
+    group_by:
+      - occupation
+
+  - name: count_by_occupation_gender
+    function: count
+    column: age
+    group_by:
+      - occupation
+      - gender
+
+  - name: unique_occupations_by_education
+    function: count_distinct
+    column: occupation
+    group_by:
+      - education
+
+  # Ratios
+  - name: capital_net
+    function: ratio
+    numerator: capital-gain
+    denominator: capital-loss
+
+  # Thresholds
+  - name: high_hours
+    function: threshold
+    column: hours-per-week
+    threshold: 40.0
+    comparator: gt
+
+  - name: has_capital_gain
+    function: threshold
+    column: capital-gain
+    threshold: 0.0
+    comparator: gt
+
+  - name: senior
+    function: threshold
+    column: age
+    threshold: 50.0
+    comparator: gt
+
+  # One-hot encode categorical columns
+  - function: ohe
+    columns:
+      - gender
+      - workclass
+    drop_first: true
+    drop_nulls: true

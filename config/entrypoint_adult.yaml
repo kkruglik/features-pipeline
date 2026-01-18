@@ -1,0 +1,3 @@
+data: data/input/adult.csv
+features: config/features/adult.yaml
+labels: config/labels/adult.yaml
