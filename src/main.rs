@@ -48,33 +48,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", yaml_output);
 
     let csv_file = std::fs::File::open(&entrypoint_config.data)?;
-    let mut df = CsvReader::new(csv_file).finish()?;
+    let df = CsvReader::new(csv_file).finish()?;
 
     println!("Data before transform: {:?}", df.shape());
 
-    df = features_pipeline.apply(&df)?;
-    df = labels_pipeline.apply(&df)?;
+    let mut features = features_pipeline.apply(&df)?;
+    let mut labels = labels_pipeline.apply(&df)?;
 
-    println!("Data after transform: {:?}", df.shape());
+    println!("Number of features: {:?}", features.shape());
 
-    let output_filename = File::create_new(run_dir.join("output.csv"))?;
+    let features_filename = File::create_new(run_dir.join("features.csv"))?;
+    let labels_filename = File::create_new(run_dir.join("labels.csv"))?;
 
-    println!(
-        "Saving processed features to {}",
-        run_dir.join("output.csv").display()
-    );
-
-    CsvWriter::new(&output_filename)
+    CsvWriter::new(&features_filename)
         .include_header(true)
         .with_separator(b';')
-        .finish(&mut df)?;
+        .finish(&mut features)?;
 
-    let features_array = df.to_ndarray::<Float64Type>(IndexOrder::Fortran)?;
+    CsvWriter::new(&labels_filename)
+        .include_header(true)
+        .with_separator(b';')
+        .finish(&mut labels)?;
 
-    let (features, targets) = (
-        features_array.slice(s![.., 0..9]).to_owned(),
-        features_array.column(10).to_owned(),
-    );
+    let features_array = features.to_ndarray::<Float64Type>(IndexOrder::Fortran)?;
+    let labels_array = labels.to_ndarray::<Float64Type>(IndexOrder::Fortran)?;
 
     Ok(())
 }
