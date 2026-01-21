@@ -10,7 +10,6 @@ pub enum LabelsConfig {
     #[serde(rename = "existing_target")]
     ExistingTarget {
         column: String,
-        name: String,
         encode: bool,
         drop_original: bool,
     },
@@ -37,6 +36,7 @@ impl LabelsPipeline {
         for step in &self.steps {
             result = step.apply(&result)?;
         }
+        result = result.select(["target"])?;
         Ok(result)
     }
 }
@@ -46,7 +46,6 @@ impl LabelsConfig {
         match self {
             Self::ExistingTarget {
                 column,
-                name,
                 encode,
                 drop_original,
             } => {
@@ -65,7 +64,7 @@ impl LabelsConfig {
                     let mut result = data
                         .clone()
                         .lazy()
-                        .with_columns([col(column).alias(name)])
+                        .with_columns([col(column).alias("target")])
                         .collect()?;
                     if *drop_original {
                         result = result.drop(column)?;
@@ -93,7 +92,7 @@ impl LabelsConfig {
                 let mut result = data
                     .clone()
                     .lazy()
-                    .with_columns([expr.alias(name)])
+                    .with_columns([expr.alias("target")])
                     .collect()?;
 
                 if *drop_original {

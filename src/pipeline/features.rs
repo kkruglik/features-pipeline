@@ -71,7 +71,6 @@ pub enum FeatureConfig {
         columns: Vec<String>,
         drop_first: bool,
         drop_nulls: bool,
-        separator: Option<String>,
     },
 }
 
@@ -91,17 +90,40 @@ impl FeaturePipeline {
         Ok(config)
     }
 
-    pub fn apply(&self, data: &DataFrame) -> Result<DataFrame, PipelineStepError> {
+    pub fn apply(&self, data: &DataFrame) -> Result<(DataFrame), PipelineStepError> {
         let mut result = data.clone();
+        let mut output_columns: Vec<String> = vec![];
         for step in &self.steps {
-            result = step.apply(&result)?;
+            result = step.apply_feature(&result)?;
+            match step {
+                FeatureConfig::Ohe { .. } => {
+                    let ohe_cols: Vec<String> = result
+                        .get_column_names()
+                        .iter()
+                        .filter(|col| col.contains("__ohe__"))
+                        .map(|col| col.to_string())
+                        .collect();
+                    output_columns.extend(ohe_cols);
+                }
+                _ => {
+                    if let Some(name) = step.name() {
+                        output_columns.push(format!("feature_{}", name));
+                    }
+                }
+            }
         }
+
+        output_columns.sort();
+        output_columns.dedup();
+
+        result = result.select(output_columns)?;
+
         Ok(result)
     }
 }
 
 impl FeatureConfig {
-    pub fn apply(&self, data: &DataFrame) -> Result<DataFrame, PipelineStepError> {
+    pub fn apply_feature(&self, data: &DataFrame) -> Result<DataFrame, PipelineStepError> {
         match self {
             Self::Mean {
                 column,
@@ -403,7 +425,6 @@ impl FeatureConfig {
                 columns,
                 drop_first,
                 drop_nulls,
-                separator,
             } => {
                 for col in columns.iter() {
                     if !self.is_column_exists(data, col) {
@@ -420,7 +441,7 @@ impl FeatureConfig {
                 let col_strs: Vec<&str> = columns.iter().map(|s| s.as_str()).collect();
                 Ok(data.clone().columns_to_dummies(
                     col_strs,
-                    separator.as_deref(),
+                    Some("__ohe__"),
                     *drop_first,
                     *drop_nulls,
                 )?)
@@ -431,5 +452,19 @@ impl FeatureConfig {
 
     fn is_column_exists(&self, data: &DataFrame, col_name: &str) -> bool {
         data.get_column_names().iter().any(|col| *col == col_name)
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Mean { name, .. }
+            | Self::Sum { name, .. }
+            | Self::Max { name, .. }
+            | Self::Min { name, .. }
+            | Self::Count { name, .. }
+            | Self::CountDistinct { name, .. }
+            | Self::Ratio { name, .. }
+            | Self::Threshold { name, .. } => Some(name),
+            Self::Ohe { .. } => None,
+        }
     }
 }
