@@ -3,6 +3,7 @@ use std::{fs::File, io::BufReader};
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_yaml::from_reader;
+use tracing::instrument;
 
 use crate::errors::PipelineStepError;
 
@@ -90,7 +91,7 @@ impl FeaturePipeline {
         Ok(config)
     }
 
-    pub fn apply(&self, data: &DataFrame) -> Result<(DataFrame), PipelineStepError> {
+    pub fn apply(&self, data: &DataFrame) -> Result<DataFrame, PipelineStepError> {
         let mut result = data.clone();
         let mut output_columns: Vec<String> = vec![];
         for step in &self.steps {
