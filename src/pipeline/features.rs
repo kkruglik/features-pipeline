@@ -1,13 +1,13 @@
-use std::{fs::File, io::BufReader};
+use std::{fs::File, io::BufReader, thread};
 
 use polars::prelude::*;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use serde_yaml::from_reader;
-use tracing::instrument;
 
 use crate::errors::PipelineStepError;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "function")]
 pub enum FeatureConfig {
     #[serde(rename = "mean")]
@@ -89,6 +89,97 @@ impl FeaturePipeline {
         let reader = BufReader::new(config_yaml);
         let config: FeaturePipeline = from_reader(reader)?;
         Ok(config)
+    }
+
+    pub fn apply_parallel(&self, data: &DataFrame) -> Result<DataFrame, PipelineStepError> {
+        let results: Vec<(DataFrame, Vec<String>)> = self
+            .steps
+            .par_iter()
+            .map(|step| {
+                let feature_df = step.apply_feature(data)?;
+
+                let cols: Vec<String> = match step {
+                    FeatureConfig::Ohe { .. } => feature_df
+                        .get_column_names()
+                        .iter()
+                        .filter(|c| c.contains("__ohe__"))
+                        .map(|c| c.to_string())
+                        .collect(),
+                    _ => step
+                        .name()
+                        .map(|n| vec![format!("feature_{}", n)])
+                        .unwrap_or_default(),
+                };
+
+                Ok((feature_df, cols))
+            })
+            .collect::<Result<Vec<_>, PipelineStepError>>()?;
+
+        let mut output_columns: Vec<String> =
+            results.iter().flat_map(|(_, cols)| cols.clone()).collect();
+
+        output_columns.sort();
+        output_columns.dedup();
+
+        let mut result = data.clone();
+        for (feature_df, cols) in &results {
+            for col_name in cols {
+                if let Ok(col) = feature_df.column(col_name) {
+                    result.with_column(col.clone())?;
+                }
+            }
+        }
+
+        result = result.select(output_columns)?;
+        Ok(result)
+    }
+
+    pub fn apply_parallel_threads(&self, data: &DataFrame) -> Result<DataFrame, PipelineStepError> {
+        let data = Arc::new(data.clone());
+
+        let tasks: Vec<_> = self.steps.clone()
+            .into_iter()
+            .map(|step| {
+                let data = Arc::clone(&data);
+                thread::spawn(move || step.apply_feature(&data))
+            })
+            .collect();
+
+        let mut output_columns: Vec<String> = self
+            .steps
+            .iter()
+            .filter_map(|step| step.name().map(|n| format!("feature_{}", n)))
+            .collect();
+
+        let feature_dfs: Vec<DataFrame> = tasks
+            .into_iter()
+            .map(|task| task.join().unwrap())
+            .collect::<Result<Vec<_>, PipelineStepError>>()?;
+
+        for df in &feature_dfs {
+            let ohe_cols: Vec<String> = df
+                .get_column_names()
+                .iter()
+                .filter(|c| c.contains("__ohe__"))
+                .map(|c| c.to_string())
+                .collect();
+            output_columns.extend(ohe_cols);
+        }
+
+        let mut result = Arc::try_unwrap(data).unwrap();
+        for feature in &feature_dfs {
+            for col_name in &output_columns {
+                if let Ok(col) = feature.column(col_name) {
+                    result.with_column(col.clone())?;
+                }
+            }
+        }
+
+        output_columns.sort();
+        output_columns.dedup();
+        result = result.select(output_columns)?;
+
+        Ok(result)
     }
 
     pub fn apply(&self, data: &DataFrame) -> Result<DataFrame, PipelineStepError> {
