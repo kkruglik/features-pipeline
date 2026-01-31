@@ -5,12 +5,11 @@ use linfa::metrics::ToConfusionMatrix;
 use linfa::prelude::*;
 use linfa_logistic::LogisticRegression;
 use polars::prelude::*;
-use serde_yaml::to_string;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::path::PathBuf;
-use tracing::{debug, error, info, trace, warn};
+use tracing::info;
 use tracing_subscriber;
 
 use features_pipeline::config::entry::EntrypointConfig;
@@ -54,7 +53,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     info!("Raw data shape: {:?}", df.shape());
     info!("Columns: {:?}", df.get_column_names());
 
-    let mut features = features_pipeline.apply(&df)?;
+    // let mut features = features_pipeline.apply(&df)?;
+    let mut features = features_pipeline.apply_parallel(&df)?;
 
     info!("Features before fill_null: {:?}", features.shape());
 
